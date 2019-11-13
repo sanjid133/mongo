@@ -3,7 +3,6 @@ package mongo
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -17,7 +16,6 @@ import (
 const (
 	namespaceExistsErrCode int32 = 48
 )
-
 
 // IndexKey holds a key of index
 type IndexKey struct {
@@ -94,6 +92,10 @@ func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName s
 	if len(tcfgs) > 0 {
 		ts.tcfg = tcfgs[0]
 	}
+
+	stringP := func(s string) *string { return &s }
+	boolP := func(b bool) *bool { return &b }
+
 	var ttl int32 = 60 * 1 // time.Second * 1
 	opts := &options.IndexOptions{
 		Name:               stringP("expire_after"),
@@ -106,20 +108,12 @@ func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName s
 		Options: opts,
 	}
 
-	ts.ensureIndex(ctx, ts.tcfg.BasicCName, expiredModel)
-	ts.ensureIndex(ctx, ts.tcfg.AccessCName, expiredModel)
-	ts.ensureIndex(ctx, ts.tcfg.RefreshCName, expiredModel)
+	_ = ts.ensureIndex(ctx, ts.tcfg.BasicCName, expiredModel)
+	_ = ts.ensureIndex(ctx, ts.tcfg.AccessCName, expiredModel)
+	_ = ts.ensureIndex(ctx, ts.tcfg.RefreshCName, expiredModel)
 
 	store = ts
 	return
-}
-
-func stringP(s string) *string {
-	return &s
-}
-
-func boolP(b bool) *bool {
-	return &b
 }
 
 // TokenStore MongoDB storage for OAuth 2.0
@@ -134,7 +128,7 @@ func (ts *TokenStore) Close() {
 	ts.Close()
 }
 
-func (ts *TokenStore) ensureIndex(ctx context.Context, col string, index mongo.IndexModel) error  {
+func (ts *TokenStore) ensureIndex(ctx context.Context, col string, index mongo.IndexModel) error {
 	cmd := bson.D{{"create", col}}
 	if err := ts.client.Database(ts.dbName).RunCommand(ctx, cmd).Err(); err != nil {
 		// ignore NamespaceExists errors for idempotency
@@ -211,7 +205,6 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 		}
 
 		access := info.GetAccess()
-		fmt.Println("info.GetAccess()", access)
 		if access == "" {
 			accessID := primitive.NewObjectID()
 			access = accessID.Hex()
@@ -255,7 +248,11 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 // RemoveByCode use the authorization code to delete the token information
 func (ts *TokenStore) RemoveByCode(code string) error {
 	return ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
-		q := bson.M{"_id": code}
+		oid, err := primitive.ObjectIDFromHex(code)
+		if err != nil {
+			return err
+		}
+		q := bson.M{"_id": oid}
 		_, verr := c.DeleteOne(context.Background(), q)
 		if verr != nil {
 			if verr == mongo.ErrNoDocuments {
@@ -304,7 +301,6 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 		}
 		q := bson.M{"_id": objID}
 		verr := c.FindOne(context.Background(), q).Decode(&bd)
-		fmt.Println(verr, "...........................")
 		if verr != nil {
 			if verr == mongo.ErrNoDocuments {
 				return nil
@@ -313,7 +309,6 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 		}
 		var tm models.Token
 		if err = json.Unmarshal(bd.Data, &tm); err != nil {
-			fmt.Println(err, ",,,,,,,,,,,,,,,,,,")
 			return err
 		}
 		ti = &tm
@@ -324,11 +319,9 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 
 func (ts *TokenStore) getBasicID(cname, token string) (basicID string, err error) {
 	err = ts.cHandler(cname, func(c *mongo.Collection) error {
-		fmt.Println("getBasicID", cname, token)
 		var td tokenData
 		q := bson.M{"_id": token}
 		verr := c.FindOne(context.Background(), q).Decode(&td)
-		fmt.Println(verr, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 		if verr != nil {
 			if verr == mongo.ErrNoDocuments {
 				return nil
@@ -343,28 +336,24 @@ func (ts *TokenStore) getBasicID(cname, token string) (basicID string, err error
 
 // GetByCode use the authorization code for token information data
 func (ts *TokenStore) GetByCode(code string) (ti oauth2.TokenInfo, err error) {
-	fmt.Println("GetByCode", code)
 	ti, err = ts.getData(code)
 	return
 }
 
 // GetByAccess use the access token for token information data
 func (ts *TokenStore) GetByAccess(access string) (ti oauth2.TokenInfo, err error) {
-	fmt.Println("GetByAccess", access)
 	basicID, err := ts.getBasicID(ts.tcfg.AccessCName, access)
-	fmt.Println(basicID, ">>>>>>>>>>>>>>>>>>")
-	if err != nil && basicID == "" {
+	if err != nil || basicID == "" {
 		return
 	}
 	ti, err = ts.getData(basicID)
-	fmt.Println(err, "???????????????????????????????????", ti)
 	return
 }
 
 // GetByRefresh use the refresh token for token information data
 func (ts *TokenStore) GetByRefresh(refresh string) (ti oauth2.TokenInfo, err error) {
 	basicID, err := ts.getBasicID(ts.tcfg.RefreshCName, refresh)
-	if err != nil && basicID == "" {
+	if err != nil || basicID == "" {
 		return
 	}
 	ti, err = ts.getData(basicID)
@@ -378,7 +367,7 @@ type basicData struct {
 }
 
 type tokenData struct {
-	ID       string `bson:"_id"`
-	BasicID   string             `bson:"BasicID"`
-	ExpiredAt time.Time          `bson:"ExpiredAt"`
+	ID        string    `bson:"_id"`
+	BasicID   string    `bson:"BasicID"`
+	ExpiredAt time.Time `bson:"ExpiredAt"`
 }
