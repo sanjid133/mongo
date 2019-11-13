@@ -13,6 +13,11 @@ import (
 	"gopkg.in/oauth2.v3/models"
 )
 
+const (
+	namespaceExistsErrCode int32 = 48
+)
+
+
 // IndexKey holds a key of index
 type IndexKey struct {
 	Key  string
@@ -101,11 +106,9 @@ func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName s
 		Options: opts,
 	}
 
-	ts.c(ts.tcfg.BasicCName).Indexes().CreateOne(ctx, expiredModel)
-
-	ts.c(ts.tcfg.AccessCName).Indexes().CreateOne(ctx, expiredModel)
-
-	ts.c(ts.tcfg.RefreshCName).Indexes().CreateOne(ctx, expiredModel)
+	ts.ensureIndex(ctx, ts.tcfg.BasicCName, expiredModel)
+	ts.ensureIndex(ctx, ts.tcfg.AccessCName, expiredModel)
+	ts.ensureIndex(ctx, ts.tcfg.RefreshCName, expiredModel)
 
 	store = ts
 	return
@@ -129,6 +132,19 @@ type TokenStore struct {
 // Close close the mongo session
 func (ts *TokenStore) Close() {
 	ts.Close()
+}
+
+func (ts *TokenStore) ensureIndex(ctx context.Context, col string, index mongo.IndexModel) error  {
+	cmd := bson.D{{"create", col}}
+	if err := ts.client.Database(ts.dbName).RunCommand(ctx, cmd).Err(); err != nil {
+		// ignore NamespaceExists errors for idempotency
+		cmdErr, ok := err.(mongo.CommandError)
+		if !ok || cmdErr.Code != namespaceExistsErrCode {
+			return err
+		}
+	}
+	_, err := ts.c(col).Indexes().CreateOne(ctx, index)
+	return err
 }
 
 func (ts *TokenStore) c(name string) *mongo.Collection {
