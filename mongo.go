@@ -65,7 +65,6 @@ type TokenConfig struct {
 // NewDefaultTokenConfig create a default token configuration
 func NewDefaultTokenConfig() *TokenConfig {
 	return &TokenConfig{
-		TxnCName:     "oauth2_txn",
 		BasicCName:   "oauth2_basic",
 		AccessCName:  "oauth2_access",
 		RefreshCName: "oauth2_refresh",
@@ -299,7 +298,11 @@ func (ts *TokenStore) RemoveByRefresh(refresh string) error {
 func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 	err = ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
 		var bd basicData
-		q := bson.M{"_id": basicID}
+		objID, err := primitive.ObjectIDFromHex(basicID)
+		if err != nil {
+			return err
+		}
+		q := bson.M{"_id": objID}
 		verr := c.FindOne(context.Background(), q).Decode(&bd)
 		fmt.Println(verr, "...........................")
 		if verr != nil {
@@ -349,6 +352,7 @@ func (ts *TokenStore) GetByCode(code string) (ti oauth2.TokenInfo, err error) {
 func (ts *TokenStore) GetByAccess(access string) (ti oauth2.TokenInfo, err error) {
 	fmt.Println("GetByAccess", access)
 	basicID, err := ts.getBasicID(ts.tcfg.AccessCName, access)
+	fmt.Println(basicID, ">>>>>>>>>>>>>>>>>>")
 	if err != nil && basicID == "" {
 		return
 	}
