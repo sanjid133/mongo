@@ -217,12 +217,8 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 			accessID := primitive.NewObjectID()
 			access = accessID.Hex()
 		}
-		aId, err := primitive.ObjectIDFromHex(access)
-		if err != nil {
-			return err
-		}
 		accessCName := tokenData{
-			ID:        aId,
+			ID:        access,
 			BasicID:   id.Hex(),
 			ExpiredAt: aexp,
 		}
@@ -234,12 +230,8 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 		}
 
 		if refresh := info.GetRefresh(); refresh != "" {
-			rId, err := primitive.ObjectIDFromHex(refresh)
-			if err != nil {
-				return err
-			}
 			refreshCName := tokenData{
-				ID:        rId,
+				ID:        refresh,
 				BasicID:   id.Hex(),
 				ExpiredAt: rexp,
 			}
@@ -375,7 +367,7 @@ type basicData struct {
 }
 
 type tokenData struct {
-	ID        primitive.ObjectID `bson:"_id"`
+	ID       string `bson:"_id"`
 	BasicID   string             `bson:"BasicID"`
 	ExpiredAt time.Time          `bson:"ExpiredAt"`
 }
