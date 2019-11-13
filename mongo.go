@@ -301,6 +301,7 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 		var bd basicData
 		q := bson.M{"_id": basicID}
 		verr := c.FindOne(context.Background(), q).Decode(&bd)
+		fmt.Println(verr, "...........................")
 		if verr != nil {
 			if verr == mongo.ErrNoDocuments {
 				return nil
@@ -309,6 +310,7 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 		}
 		var tm models.Token
 		if err = json.Unmarshal(bd.Data, &tm); err != nil {
+			fmt.Println(err, ",,,,,,,,,,,,,,,,,,")
 			return err
 		}
 		ti = &tm
@@ -338,18 +340,20 @@ func (ts *TokenStore) getBasicID(cname, token string) (basicID string, err error
 
 // GetByCode use the authorization code for token information data
 func (ts *TokenStore) GetByCode(code string) (ti oauth2.TokenInfo, err error) {
+	fmt.Println("GetByCode", code)
 	ti, err = ts.getData(code)
 	return
 }
 
 // GetByAccess use the access token for token information data
 func (ts *TokenStore) GetByAccess(access string) (ti oauth2.TokenInfo, err error) {
+	fmt.Println("GetByAccess", access)
 	basicID, err := ts.getBasicID(ts.tcfg.AccessCName, access)
 	if err != nil && basicID == "" {
 		return
 	}
 	ti, err = ts.getData(basicID)
-	fmt.Println(err, "???????????????????????????????????")
+	fmt.Println(err, "???????????????????????????????????", ti)
 	return
 }
 
