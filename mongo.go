@@ -319,9 +319,11 @@ func (ts *TokenStore) getData(basicID string) (ti oauth2.TokenInfo, err error) {
 
 func (ts *TokenStore) getBasicID(cname, token string) (basicID string, err error) {
 	err = ts.cHandler(cname, func(c *mongo.Collection) error {
+		fmt.Println("getBasicID", cname, token)
 		var td tokenData
 		q := bson.M{"_id": token}
 		verr := c.FindOne(context.Background(), q).Decode(&td)
+		fmt.Println(verr, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 		if verr != nil {
 			if verr == mongo.ErrNoDocuments {
 				return nil
@@ -347,6 +349,7 @@ func (ts *TokenStore) GetByAccess(access string) (ti oauth2.TokenInfo, err error
 		return
 	}
 	ti, err = ts.getData(basicID)
+	fmt.Println(err, "???????????????????????????????????")
 	return
 }
 
