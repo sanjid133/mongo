@@ -1,8 +1,8 @@
 language: go
 sudo: false
-go_import_path: gopkg.in/go-oauth2/mongo.v3
+go_import_path: gopkg.in/go-oauth2/mongo.v4
 go:
-  - 1.7
+  - 1.12
 services:
   - mongodb
 before_install:
