@@ -28,7 +28,6 @@ type Index struct {
 	ExpireAfterSeconds *int32
 }
 
-
 // Config mongodb configuration parameters
 type Config struct {
 	ctx context.Context
@@ -37,8 +36,9 @@ type Config struct {
 }
 
 // NewConfig create mongodb configuration
-func NewConfig(url, db string) *Config {
+func NewConfig(ctx context.Context, url, db string) *Config {
 	return &Config{
+		ctx: ctx,
 		URL: url,
 		DB:  db,
 	}
@@ -70,7 +70,7 @@ func NewDefaultTokenConfig() *TokenConfig {
 func NewTokenStore(cfg *Config, tcfgs ...*TokenConfig) (store *TokenStore) {
 	opts := options.Client().
 		ApplyURI(cfg.URL).
-		SetConnectTimeout(10 *time.Second)
+		SetConnectTimeout(10 * time.Second)
 	client, err := mongo.Connect(cfg.ctx, opts)
 	if err != nil {
 		panic(err)
@@ -82,18 +82,18 @@ func NewTokenStore(cfg *Config, tcfgs ...*TokenConfig) (store *TokenStore) {
 // NewTokenStoreWithClient create a token store instance based on mongodb
 func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName string, tcfgs ...*TokenConfig) (store *TokenStore) {
 	ts := &TokenStore{
-		dbName:  dbName,
+		dbName: dbName,
 		client: client,
-		tcfg:    NewDefaultTokenConfig(),
+		tcfg:   NewDefaultTokenConfig(),
 	}
 	if len(tcfgs) > 0 {
 		ts.tcfg = tcfgs[0]
 	}
 	var ttl int32 = 60 * 1 // time.Second * 1
 	opts := &options.IndexOptions{
-		Name: stringP("expire_after"),
-		Unique: boolP(false),
-		Sparse:boolP(false),
+		Name:               stringP("expire_after"),
+		Unique:             boolP(false),
+		Sparse:             boolP(false),
 		ExpireAfterSeconds: &ttl,
 	}
 	expiredModel := mongo.IndexModel{
@@ -103,7 +103,6 @@ func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName s
 
 	ts.c(ts.tcfg.BasicCName).Indexes().CreateOne(ctx, expiredModel)
 
-
 	ts.c(ts.tcfg.AccessCName).Indexes().CreateOne(ctx, expiredModel)
 
 	ts.c(ts.tcfg.RefreshCName).Indexes().CreateOne(ctx, expiredModel)
@@ -112,18 +111,18 @@ func NewTokenStoreWithClient(ctx context.Context, client *mongo.Client, dbName s
 	return
 }
 
-func stringP(s string) *string  {
+func stringP(s string) *string {
 	return &s
 }
 
-func boolP(b bool) *bool  {
+func boolP(b bool) *bool {
 	return &b
 }
 
 // TokenStore MongoDB storage for OAuth 2.0
 type TokenStore struct {
-	tcfg    *TokenConfig
-	dbName  string
+	tcfg   *TokenConfig
+	dbName string
 	client *mongo.Client
 }
 
@@ -156,7 +155,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 		}
 		return ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
 			_, err = c.InsertOne(ctx, basicData{
-				ID:       oid,
+				ID:        oid,
 				Data:      jv,
 				ExpiredAt: info.GetCodeCreateAt().Add(info.GetCodeExpiresIn()),
 			})
@@ -184,7 +183,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 
 	if err = mongo.WithSession(ctx, session, func(sessionContext mongo.SessionContext) error {
 		basicCName := basicData{
-			ID:       id,
+			ID:        id,
 			Data:      jv,
 			ExpiredAt: rexp,
 		}
@@ -201,7 +200,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 			return err
 		}
 		accessCName := tokenData{
-			ID:      aId,
+			ID:        aId,
 			BasicID:   id.Hex(),
 			ExpiredAt: aexp,
 		}
@@ -211,7 +210,6 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 		}); err != nil {
 			return err
 		}
-
 
 		if refresh := info.GetRefresh(); refresh != "" {
 			rId, err := primitive.ObjectIDFromHex(refresh)
@@ -243,7 +241,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 
 // RemoveByCode use the authorization code to delete the token information
 func (ts *TokenStore) RemoveByCode(code string) error {
-	return ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error{
+	return ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
 		q := bson.M{"_id": code}
 		_, verr := c.DeleteOne(context.Background(), q)
 		if verr != nil {
@@ -349,13 +347,13 @@ func (ts *TokenStore) GetByRefresh(refresh string) (ti oauth2.TokenInfo, err err
 }
 
 type basicData struct {
-	ID        primitive.ObjectID    `bson:"_id"`
-	Data      []byte    `bson:"Data"`
-	ExpiredAt time.Time `bson:"ExpiredAt"`
+	ID        primitive.ObjectID `bson:"_id"`
+	Data      []byte             `bson:"Data"`
+	ExpiredAt time.Time          `bson:"ExpiredAt"`
 }
 
 type tokenData struct {
-	ID        primitive.ObjectID    `bson:"_id"`
-	BasicID   string    `bson:"BasicID"`
-	ExpiredAt time.Time `bson:"ExpiredAt"`
+	ID        primitive.ObjectID `bson:"_id"`
+	BasicID   string             `bson:"BasicID"`
+	ExpiredAt time.Time          `bson:"ExpiredAt"`
 }
