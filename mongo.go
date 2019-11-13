@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -211,6 +212,11 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 		}
 
 		access := info.GetAccess()
+		fmt.Println("info.GetAccess()", access)
+		if access == "" {
+			accessID := primitive.NewObjectID()
+			access = accessID.Hex()
+		}
 		aId, err := primitive.ObjectIDFromHex(access)
 		if err != nil {
 			return err
