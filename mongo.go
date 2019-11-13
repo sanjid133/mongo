@@ -222,7 +222,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 			BasicID:   id.Hex(),
 			ExpiredAt: aexp,
 		}
-		if err = ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
+		if err = ts.cHandler(ts.tcfg.AccessCName, func(c *mongo.Collection) error {
 			_, err = c.InsertOne(sessionContext, accessCName)
 			return err
 		}); err != nil {
@@ -235,7 +235,7 @@ func (ts *TokenStore) Create(info oauth2.TokenInfo) error {
 				BasicID:   id.Hex(),
 				ExpiredAt: rexp,
 			}
-			if err = ts.cHandler(ts.tcfg.BasicCName, func(c *mongo.Collection) error {
+			if err = ts.cHandler(ts.tcfg.RefreshCName, func(c *mongo.Collection) error {
 				_, err = c.InsertOne(sessionContext, refreshCName)
 				return err
 			}); err != nil {
