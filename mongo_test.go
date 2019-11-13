@@ -1,22 +1,23 @@
 package mongo
 
 import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"testing"
 	"time"
 
-	"gopkg.in/oauth2.v3/models"
-
+	"context"
 	. "github.com/smartystreets/goconvey/convey"
+	"gopkg.in/oauth2.v3/models"
 )
 
 const (
-	url    = "127.0.0.1:27017"
+	url    = "mongodb+srv://boronstage:K5KOlEcbFjhrh0qy@boron-staging-dyjxl.gcp.mongodb.net"
 	dbName = "mydb_test"
 )
 
 func TestTokenStore(t *testing.T) {
 	Convey("Test mongodb token store", t, func() {
-		store := NewTokenStore(NewConfig(url, dbName))
+		store := NewTokenStore(NewConfig(context.Background(), url, dbName))
 
 		Convey("Test authorization code store", func() {
 			info := &models.Token{
@@ -24,7 +25,7 @@ func TestTokenStore(t *testing.T) {
 				UserID:        "1_1",
 				RedirectURI:   "http://localhost/",
 				Scope:         "all",
-				Code:          "11_11_11",
+				Code:          primitive.NewObjectID().Hex(),
 				CodeCreateAt:  time.Now(),
 				CodeExpiresIn: time.Second * 5,
 			}
